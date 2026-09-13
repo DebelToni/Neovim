@@ -60,8 +60,9 @@ if [[ -n "$GHOSTTY_RESOURCES_DIR" ]]; then
   plugins+=(zsh-syntax-highlighting)
 fi
 
-# opencode editor - custom script:
-export EDITOR="$HOME/bin/opencode-editor-tmux"
+# Pi handles Ctrl+G with its own non-blocking prompt-editor extension.
+export EDITOR="nvim"
+export VISUAL="$EDITOR"
 
 
 # 5) OS-specific tweaks & aliases
@@ -113,6 +114,144 @@ fi
 alias r2='s5cmd --endpoint-url "$R2_ENDPOINT"'
 alias n='nvim'
 alias psql-size='psql -U postgres -h localhost -p 5432 -c "SELECT d.datname AS database, pg_size_pretty(pg_database_size(d.datname)) AS size FROM pg_database d WHERE NOT d.datistemplate ORDER BY pg_database_size(d.datname) DESC;"'
+
+# Paste multiline text, finish with Ctrl-D, and copy it after a 10-second delay.
+clip10() {
+  local input_file
+  input_file=$(command mktemp "${TMPDIR:-/tmp}/clip10.XXXXXX") || return 1
+
+  print -u2 -- "Paste text, then press Ctrl-D:"
+  if ! command cat > "$input_file"; then
+    command rm -f -- "$input_file"
+    return 1
+  fi
+
+  (
+    trap 'command rm -f -- "$input_file"' EXIT HUP INT TERM
+    command sleep 10
+    command clip < "$input_file"
+  ) &!
+  print -u2 -- "Scheduled for clipboard in 10 seconds."
+}
+
+# Paste a message, resume the latest Pi session in this pane, then copy the message.
+clippi() {
+  if [[ -z "$TMUX" || -z "$TMUX_PANE" ]]; then
+    print -u2 -- "clippi: must be run inside tmux"
+    return 1
+  fi
+
+  local input_file resume_command
+  input_file=$(command mktemp "${TMPDIR:-/tmp}/clippi.XXXXXX") || return 1
+
+  print -u2 -- "Paste message, then press Ctrl-D:"
+  if ! command cat > "$input_file"; then
+    command rm -f -- "$input_file"
+    return 1
+  fi
+
+  resume_command=$(command tmux capture-pane -J -p -S - -t "$TMUX_PANE" |
+    command grep -Eo 'pi[[:space:]]+--session[[:space:]]+[[:alnum:]-]+' |
+    command tail -n 1)
+  if [[ -z "$resume_command" ]]; then
+    print -u2 -- "clippi: no 'pi --session <id>' found in this pane's history"
+    command rm -f -- "$input_file"
+    return 1
+  fi
+
+  if ! command tmux send-keys -t "$TMUX_PANE" -l -- "$resume_command" ||
+     ! command tmux send-keys -t "$TMUX_PANE" Enter; then
+    command rm -f -- "$input_file"
+    return 1
+  fi
+
+  command clip < "$input_file"
+  local clip_status=$?
+  command rm -f -- "$input_file"
+  (( clip_status == 0 )) || return "$clip_status"
+  print -u2 -- "Resuming: $resume_command; message copied."
+}
+
+# Resume the latest Pi session mentioned in this tmux pane's history.
+pic() {
+  if [[ -z "$TMUX" || -z "$TMUX_PANE" ]]; then
+    print -u2 -- "pic: must be run inside tmux"
+    return 1
+  fi
+
+  local session_id
+  session_id=$(command tmux capture-pane -J -p -S - -t "$TMUX_PANE" |
+    command grep -Eo 'pi[[:space:]]+--session[[:space:]]+[[:alnum:]-]+' |
+    command tail -n 1 |
+    command grep -Eo '[[:alnum:]-]+$')
+  if [[ -z "$session_id" ]]; then
+    print -u2 -- "pic: no 'pi --session <id>' found in this pane's history"
+    return 1
+  fi
+
+  command pi --session "$session_id"
+}
+
+# Reserve one Kitty image ID for shell image previews so they can be removed
+# without disturbing images rendered by Neovim or another tmux pane.
+typeset -g CAT_KITTY_IMAGE_ID=4294967294
+typeset -gi CAT_KITTY_IMAGE_VISIBLE=0
+
+_cat_kitty_clear() {
+  (( CAT_KITTY_IMAGE_VISIBLE )) || return 0
+
+  if [[ -n "$TMUX" ]]; then
+    print -rn -- $'\ePtmux;\e\e_Ga=d,d=I,i='"$CAT_KITTY_IMAGE_ID"$',q=2\e\e\\\e\\'
+  else
+    print -rn -- $'\e_Ga=d,d=I,i='"$CAT_KITTY_IMAGE_ID"$',q=2\e\\'
+  fi
+
+  CAT_KITTY_IMAGE_VISIBLE=0
+}
+
+autoload -Uz add-zsh-hook
+add-zsh-hook -d preexec _cat_kitty_clear 2>/dev/null
+add-zsh-hook preexec _cat_kitty_clear
+
+# Render a single image at terminal width; preserve normal cat behavior otherwise.
+cat() {
+  if (( $# == 1 )) && [[ -f "$1" ]]; then
+    case "${1:l}" in
+      *.png|*.jpg|*.jpeg|*.heic)
+        local -a icat_args=(
+          icat --align=left --fit=width --scale-up --stdin=no
+          --transfer-mode=stream --passthrough=none
+          --image-id="$CAT_KITTY_IMAGE_ID"
+        )
+        local icat_status
+
+        if [[ -n "$TMUX" ]]; then
+          # Match image.nvim: direct Kitty transmission wrapped in tmux DCS,
+          # without Kitty's Unicode-placeholder passthrough mode.
+          setopt local_options pipe_fail
+          command kitten "${icat_args[@]}" -- "$1" |
+            /Volumes/SSD/v/py/bin/python -c '
+import re, sys
+data = sys.stdin.buffer.read()
+graphics = re.compile(b"\x1b_G.*?\x1b\\\\", re.DOTALL)
+sys.stdout.buffer.write(graphics.sub(
+    lambda match: b"\x1bPtmux;" + match.group().replace(b"\x1b", b"\x1b\x1b") + b"\x1b\\",
+    data,
+))
+'
+          icat_status=$?
+        else
+          command kitten "${icat_args[@]}" -- "$1"
+          icat_status=$?
+        fi
+
+        (( icat_status == 0 )) && CAT_KITTY_IMAGE_VISIBLE=1
+        return icat_status
+        ;;
+    esac
+  fi
+  command cat "$@"
+}
 
 # pgtops: list biggest tables in every non-template DB
 
@@ -400,6 +539,7 @@ alias ldocker='lazydocker'
 alias cdu='cd ../'
 alias cduu='cd ../../'
 alias c='clear -x'
+alias mac='ssh mac-self'
 alias update-giant='rm *.* && cp -r ~/Documents/ml/SUPER-GIANT/v1/model/*.* . && cp ~/Documents/ml/SUPER-GIANT/Model_Overview.md .'
 lsf() {
   local target
@@ -523,7 +663,7 @@ drawit(){
 	python drawit.py
 }
 
-export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
+export PATH="/opt/homebrew/opt/llvm@19/bin:$PATH"
 [[ -f ~/.config/secrets.zsh ]] && source ~/.config/secrets.zsh
 
 # Commands starting with a space won't be saved to history
@@ -576,3 +716,21 @@ alias oauth="opencode auth login && o -c"
 alias jarvis-post-tts="$HOME/.jarvis/app/bin/jarvis-post-tts"
 alias ipad="cd ~/ && ./connect_ipad.sh"
 alias pm="cd ~/ && pi --session 019fa950-176c-79c0-b55e-cf44f03503db"
+
+# how <query> -> ask pi (ephemeral session) for one shell command, show it, run on Y
+how() {
+  local cmd yn rc
+  cmd=$(pi -p -nt -nc -ne -ns --no-session \
+    --provider openai-codex --model gpt-5.6-luna --thinking medium \
+    --system-prompt "You answer with exactly one shell command and nothing else: no explanation, no markdown fences, no backticks." \
+    "$*"); rc=$?
+  [[ $rc -ne 0 || -z "$cmd" ]] && return 1
+  cmd=$(print -r -- "$cmd" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^```/d' -e 's/`//g')
+  [[ -z "$cmd" ]] && return 1
+  print -r -- "$cmd"
+  read -r "yn?Run? [Y/n] "
+  case "${yn:l}" in
+    y|yes|"") eval "$cmd" ;;
+    *) print -r -- "not run" ;;
+  esac
+}

@@ -23,5 +23,15 @@ return {
 	-- -- dependencies = { 'nvim-treesitter/nvim-treesitter', 'nvim-tree/nvim-web-devicons' }, -- if you prefer nvim-web-devicons
 	---@module 'render-markdown'
 	---@type render.md.UserConfig
-	opts = {},
+	-- Keep the Markdown source visible. Concealed HTML comments can contain
+	-- security-relevant instructions that must not disappear from the editor.
+	opts = {
+		html = {
+			comment = { conceal = false },
+		},
+		win_options = {
+			conceallevel = { default = 0, rendered = 0 },
+			concealcursor = { default = '', rendered = '' },
+		},
+	},
 }

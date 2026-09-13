@@ -456,7 +456,7 @@ function Spinner:_render()
 	local f = M.config.spinner_frames[self.frame]
 	vim.api.nvim_buf_set_extmark(self.bufnr, ns_spin, self.row, 0, {
 		virt_text = { { ("%s %s"):format(f, self.msg), "AIGenGhost" } },
-		virt_text_pos = "overlay",
+		virt_text_pos = "eol",
 		hl_mode = "blend",
 	})
 end

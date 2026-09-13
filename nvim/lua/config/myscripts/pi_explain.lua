@@ -317,7 +317,7 @@ local function open_hover(session, request_id, target_key, opts)
 	vim.wo[win].number = false
 	vim.wo[win].relativenumber = false
 	vim.wo[win].signcolumn = "no"
-	vim.wo[win].conceallevel = 2
+	vim.wo[win].conceallevel = 0
 
 	vim.keymap.set("n", "q", function() close_hover() end, { buffer = buf, silent = true, desc = "Close Pi explanation" })
 	vim.keymap.set("n", "<Esc>", function() close_hover() end, { buffer = buf, silent = true, desc = "Close Pi explanation" })

@@ -1,0 +1,341 @@
+#!/usr/bin/env python3
+"""Check whether a RunPod pod reached its Tailscale SSH-ready state.
+
+Output contract:
+  ready
+  stuck: <reason>
+  failure: <reason>
+
+Exit codes:
+  0 ready
+  1 stuck
+  2 failure
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import subprocess
+import time
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
+from typing import Any
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
+
+
+SSH_OPTS = [
+    "-o", "BatchMode=yes",
+    "-o", "ConnectTimeout=8",
+    "-o", "StrictHostKeyChecking=no",
+    "-o", "UserKnownHostsFile=/dev/null",
+    "-o", "LogLevel=ERROR",
+]
+
+
+READY_STATUSES = {"RUNNING", "STARTING", "CREATED"}
+
+
+def run(cmd: list[str], timeout: int = 30) -> tuple[int, str, str]:
+    try:
+        p = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+        return p.returncode, p.stdout, p.stderr
+    except subprocess.TimeoutExpired as e:
+        return 124, e.stdout or "", e.stderr or ""
+    except FileNotFoundError as e:
+        return 127, "", str(e)
+
+
+def pod_get(pod_id: str) -> tuple[dict[str, Any] | None, str | None]:
+    rc, out, err = run(["runpodctl", "pod", "get", pod_id, "-o", "json"], timeout=45)
+    if rc != 0:
+        return None, (err or out).strip() or f"runpodctl exited {rc}"
+    try:
+        return json.loads(out), None
+    except json.JSONDecodeError as e:
+        return None, f"runpodctl returned non-json: {e}"
+
+
+def running_pods() -> tuple[list[dict[str, Any]] | None, str | None]:
+    rc, out, err = run(["runpodctl", "pod", "list", "-o", "json"], timeout=45)
+    if rc != 0:
+        return None, (err or out).strip() or f"runpodctl exited {rc}"
+    try:
+        pods = json.loads(out)
+    except json.JSONDecodeError as e:
+        return None, f"runpodctl returned non-json: {e}"
+    if not isinstance(pods, list):
+        return None, "runpodctl returned an unexpected pod list"
+    return [pod for pod in pods if pod.get("desiredStatus") == "RUNNING"], None
+
+
+def parse_created_at(pod: dict[str, Any]) -> float | None:
+    text = str(pod.get("createdAt") or "")
+    m = re.match(r"(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})", text)
+    if not m:
+        return None
+    dt = datetime.strptime(" ".join(m.groups()), "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+    return dt.timestamp()
+
+
+def clean_env_value(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    if not value or "{{" in value or "}}" in value:
+        return None
+    return value
+
+
+def host_candidates(pod: dict[str, Any], explicit_host: str | None, scan_gpu_box: int) -> tuple[list[str], set[str]]:
+    hosts: list[str] = []
+    exact_hosts: set[str] = set()
+
+    def add(host: str | None, exact: bool = False) -> None:
+        if not host:
+            return
+        if host not in hosts:
+            hosts.append(host)
+        if exact:
+            exact_hosts.add(host)
+
+    add(explicit_host, exact=bool(explicit_host))
+    env = pod.get("env") if isinstance(pod.get("env"), dict) else {}
+    add(clean_env_value(env.get("TS_HOSTNAME")), exact=True)
+
+    if scan_gpu_box >= 0:
+        add("gpu-box")
+        for i in range(1, scan_gpu_box + 1):
+            add(f"gpu-box-{i}")
+
+    return hosts, exact_hosts
+
+
+def tailscale_peer(host: str) -> tuple[bool, dict[str, Any] | None]:
+    """Return (status_available, matching_peer)."""
+    rc, out, _ = run(["tailscale", "status", "--json"], timeout=10)
+    if rc != 0:
+        return False, None
+    try:
+        data = json.loads(out)
+    except json.JSONDecodeError:
+        return False, None
+
+    target = host.lower().rstrip(".").split(".")[0]
+    for peer in (data.get("Peer") or {}).values():
+        names = [peer.get("HostName"), peer.get("DNSName")]
+        for name in names:
+            short = str(name or "").lower().rstrip(".").split(".")[0]
+            if short == target:
+                return True, peer
+    return True, None
+
+
+def parse_rfc3339(value: Any) -> float | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
+def peer_matches_pod(peer: dict[str, Any] | None, pod: dict[str, Any], window: int) -> bool:
+    """Associate an auto-discovered Tailscale node by its creation time.
+
+    RunPod does not expose the Tailscale hostname and the TuesGPT container does
+    not receive RUNPOD_POD_ID. A newly authenticated Tailscale node is therefore
+    accepted only when it appeared shortly after this pod was created.
+    """
+    if not peer or not peer.get("Online"):
+        return False
+    pod_created = parse_created_at(pod)
+    peer_created = parse_rfc3339(peer.get("Created"))
+    if pod_created is None or peer_created is None:
+        return False
+    delta = peer_created - pod_created
+    return -30 <= delta <= window
+
+
+def ssh_probe(host: str) -> tuple[bool, str]:
+    remote = "printf 'ok:%s\\n' \"${RUNPOD_POD_ID:-}\""
+    rc, out, _ = run(["ssh", *SSH_OPTS, f"root@{host}", remote], timeout=12)
+    if rc != 0:
+        return False, ""
+    line = out.strip().splitlines()[-1] if out.strip() else ""
+    if not line.startswith("ok:"):
+        return False, ""
+    return True, line.removeprefix("ok:")
+
+
+def read_hapi_logs(pod_id: str, jwt: str | None) -> dict[str, Any] | None:
+    if not jwt:
+        return None
+    req = Request(
+        f"https://hapi.runpod.net/v1/pod/{pod_id}/logs",
+        headers={"Authorization": f"Bearer {jwt}", "Accept": "application/json", "User-Agent": "runpod-ready-check/1"},
+    )
+    try:
+        with urlopen(req, timeout=15) as r:
+            return json.load(r)
+    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError):
+        return None
+
+
+def flatten_logs(obj: Any) -> str:
+    if obj is None:
+        return ""
+    if isinstance(obj, str):
+        return obj
+    if isinstance(obj, list):
+        return "\n".join(flatten_logs(x) for x in obj)
+    if isinstance(obj, dict):
+        parts = []
+        for key in ("container", "containerLogs", "system", "systemLogs", "logs", "message", "text"):
+            if key in obj:
+                parts.append(flatten_logs(obj[key]))
+        if parts:
+            return "\n".join(parts)
+        return "\n".join(flatten_logs(v) for v in obj.values())
+    return str(obj)
+
+
+def log_says_start_loop(log_text: str) -> bool:
+    if not log_text:
+        return False
+    text = log_text.lower()
+    needles = [
+        "runpod_fail_sentinel",
+        "exit code 42",
+        "exited with code 42",
+        "container exited",
+        "back-off restarting",
+        "restart count",
+        "start command failed",
+    ]
+    return any(n in text for n in needles)
+
+
+def check_pod(pod_id: str, args: argparse.Namespace) -> tuple[int, str]:
+    deadline = time.time() + args.timeout
+    not_found_deadline = min(deadline, time.time() + 60)
+    zero_since: float | None = None
+    last_pod: dict[str, Any] | None = None
+    last_err = ""
+    saw_running = False
+
+    while time.time() < deadline:
+        pod, err = pod_get(pod_id)
+        if err:
+            if "pod not found" in err.lower() and time.time() < not_found_deadline:
+                last_err = err
+                time.sleep(args.interval)
+                continue
+            return 2, f"failure: {err}"
+        assert pod is not None
+        last_pod = pod
+
+        status = str(pod.get("desiredStatus") or pod.get("status") or "unknown")
+        saw_running = saw_running or status == "RUNNING"
+        if status not in READY_STATUSES:
+            return 2, f"failure: pod status is {status}"
+
+        hosts, exact_hosts = host_candidates(pod, args.host, args.scan_gpu_box)
+        for host in hosts:
+            status_available, peer = tailscale_peer(host)
+            if status_available and (peer is None or not peer.get("Online")) and host not in exact_hosts:
+                continue
+            connected, remote_pod_id = ssh_probe(host)
+            if not connected:
+                continue
+            if remote_pod_id == pod_id or host in exact_hosts or peer_matches_pod(peer, pod, args.peer_created_window):
+                return 0, "ready"
+
+        logs = read_hapi_logs(pod_id, args.hapi_jwt)
+        if log_says_start_loop(flatten_logs(logs)):
+            return 1, "stuck: container start loop detected in logs"
+
+        now = time.time()
+        uptime_value = pod.get("uptimeSeconds")
+        try:
+            uptime = int(uptime_value) if uptime_value is not None else None
+        except (TypeError, ValueError):
+            uptime = None
+        created_ts = parse_created_at(pod)
+        age = now - created_ts if created_ts else None
+        ssh_error = (pod.get("ssh") or {}).get("error") if isinstance(pod.get("ssh"), dict) else None
+
+        if status == "RUNNING" and uptime == 0:
+            if age is not None and age < args.startup_grace:
+                zero_since = None
+            else:
+                if zero_since is None:
+                    zero_since = now
+                required_observation = args.zero_observation if age is not None else args.startup_grace + args.zero_observation
+                if now - zero_since >= required_observation:
+                    return 1, f"stuck: RUNNING but container uptime stayed 0 and ssh is not ready ({ssh_error or 'no ssh info'})"
+        else:
+            zero_since = None
+
+        last_err = f"status={status} uptime={uptime} ssh={ssh_error or 'unknown'} hosts={','.join(hosts) or 'none'}"
+        time.sleep(args.interval)
+
+    if last_pod is None:
+        return 2, f"failure: pod never appeared ({last_err or 'no details'})"
+    if saw_running:
+        return 2, f"failure: timed out waiting for tailscale ({last_err or 'no details'})"
+    return 2, f"failure: timed out before pod reached RUNNING ({last_err or 'no details'})"
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="Check RunPod Tailscale readiness; with no pod IDs, check every running pod.")
+    ap.add_argument("pod_ids", nargs="*", metavar="pod_id")
+    ap.add_argument("--host", help="Expected Tailscale hostname. If absent, TS_HOSTNAME from pod env is used.")
+    ap.add_argument("--timeout", type=int, default=900)
+    ap.add_argument("--interval", type=int, default=10)
+    ap.add_argument("--startup-grace", type=int, default=180, help="Seconds after pod creation before uptime=0 is considered stuck.")
+    ap.add_argument("--zero-observation", type=int, default=45, help="Seconds of observed uptime=0 before returning stuck after grace.")
+    ap.add_argument("--scan-gpu-box", type=int, default=8, help="Also probe gpu-box..gpu-box-N.")
+    ap.add_argument("--peer-created-window", type=int, default=900, help="Maximum seconds between pod and auto-discovered Tailscale-node creation.")
+    ap.add_argument("--hapi-jwt", default=os.environ.get("RUNPOD_HAPI_JWT") or os.environ.get("RUNPOD_CONSOLE_JWT"))
+    args = ap.parse_args()
+
+    if args.timeout <= 0 or args.interval <= 0 or args.startup_grace < 0 or args.zero_observation < 0 or args.peer_created_window < 0:
+        ap.error("timeouts/intervals must be positive and grace/window values non-negative")
+
+    automatic = not args.pod_ids
+    if automatic:
+        pods, err = running_pods()
+        if err:
+            print(f"failure: {err}")
+            return 2
+        assert pods is not None
+        if not pods:
+            print("no running pods")
+            return 0
+        targets = [(str(pod["id"]), str(pod.get("name") or "unnamed")) for pod in pods]
+    else:
+        targets = [(pod_id, "") for pod_id in args.pod_ids]
+
+    if args.host and len(targets) != 1:
+        ap.error("--host requires exactly one pod")
+
+    with ThreadPoolExecutor(max_workers=min(8, len(targets))) as pool:
+        results = list(pool.map(lambda target: check_pod(target[0], args), targets))
+
+    labelled = automatic or len(targets) > 1
+    for (pod_id, name), (_, message) in zip(targets, results):
+        if labelled:
+            label = f"{pod_id} {name}".rstrip()
+            print(f"{label}: {message}")
+        else:
+            print(message)
+
+    return max(code for code, _ in results)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

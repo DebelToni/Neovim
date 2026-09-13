@@ -19,16 +19,16 @@ Ghostty mode switching
    Cmd+Shift+,
 
 CLI quick switch:
-  /Users/antonhristov/Documents/my-vim-env/bin/ghostty-switch-mode default lightsaber
-  /Users/antonhristov/Documents/my-vim-env/bin/ghostty-switch-mode default transparent_image
-  /Users/antonhristov/Documents/my-vim-env/bin/ghostty-switch-mode default horse
-  /Users/antonhristov/Documents/my-vim-env/bin/ghostty-switch-mode default transparent_image complete_hackermode
+  /Users/antonhristov/my-vim-env/bin/ghostty-switch-mode default lightsaber
+  /Users/antonhristov/my-vim-env/bin/ghostty-switch-mode default transparent_image
+  /Users/antonhristov/my-vim-env/bin/ghostty-switch-mode default horse
+  /Users/antonhristov/my-vim-env/bin/ghostty-switch-mode default transparent_image complete_hackermode
 
 Notes:
 - transparent_image mode uses:
-  /Users/antonhristov/Documents/my-vim-env/ghostty/images/Ghostty_background.jpg
+  /Users/antonhristov/my-vim-env/ghostty/images/Ghostty_background.jpg
 - horse layer uses:
-  /Users/antonhristov/Documents/my-vim-env/ghostty/images/Ghostty_horse.jpg
+  /Users/antonhristov/my-vim-env/ghostty/images/Ghostty_horse.jpg
 - horse automatically includes transparent_image when selected via ghostty-switch-mode,
   so you can tune transparency values only in transparent_image.conf.
 - horse integer controls live in:

@@ -494,7 +494,7 @@ local function render_suggestion()
 	if not ok then
 		pcall(vim.api.nvim_buf_set_extmark, s.bufnr, ns, s.row, s.col, {
 			virt_text = { { first, state.config.ghost_hl_group } },
-			virt_text_pos = "overlay",
+			virt_text_pos = "eol",
 			hl_mode = "combine",
 		})
 	end

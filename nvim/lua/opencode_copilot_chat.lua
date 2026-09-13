@@ -705,7 +705,7 @@ local function set_inline_thinking(bufnr, row)
 	vim.api.nvim_buf_clear_namespace(bufnr, ns_inline, 0, -1)
 	return vim.api.nvim_buf_set_extmark(bufnr, ns_inline, row, 0, {
 		virt_text = { { state.config.inline.thinking_text, state.config.inline.thinking_hl } },
-		virt_text_pos = "overlay",
+		virt_text_pos = "eol",
 		hl_mode = "combine",
 	})
 end

@@ -1,0 +1,44 @@
+#!/usr/bin/env sh
+set -eu
+
+if [ "$#" -ne 0 ]; then
+  echo "usage: command | osc52" >&2
+  exit 2
+fi
+
+tmp=$(mktemp "${TMPDIR:-/tmp}/osc52.XXXXXX")
+trap 'rm -f "$tmp"' EXIT HUP INT TERM
+cat >"$tmp"
+
+# Ask tmux to send OSC 52 to its attached client. Unlike printing the escape
+# sequence to stdout, this also works when an agent invokes osc52 from a
+# subprocess whose stdout is being captured, and it survives SSH + tmux.
+if [ -n "${TMUX:-}" ] && command -v tmux >/dev/null 2>&1; then
+  if tmux load-buffer -w "$tmp" >/dev/null 2>&1; then
+    exit 0
+  fi
+fi
+
+emit_osc52() {
+  if [ -n "${TMUX:-}" ]; then
+    # DCS passthrough for tmux. The doubled ESC introduces the inner OSC.
+    {
+      printf '\033Ptmux;\033\033]52;c;'
+      base64 <"$tmp" | tr -d '\r\n'
+      printf '\a\033\\'
+    } >/dev/tty
+  else
+    {
+      printf '\033]52;c;'
+      base64 <"$tmp" | tr -d '\r\n'
+      printf '\a'
+    } >/dev/tty
+  fi
+}
+
+if emit_osc52 2>/dev/null; then
+  exit 0
+fi
+
+echo "osc52: could not reach a terminal clipboard (no attached tmux client or controlling tty)" >&2
+exit 1

@@ -2,12 +2,6 @@
 set -e
 
 DOTDIR="$HOME/my-vim-env"
-if [[ "$(uname)" == "Darwin" ]]; then
-	DOTDIR="$HOME/Documents/my-vim-env"
-else
-	echo "$(uname)"
-fi
-
 declare -A links=(
   ["$DOTDIR/zsh/.zshrc"]="$HOME/.zshrc"
   ["$DOTDIR/tmux/.tmux.conf"]="$HOME/.tmux.conf"
@@ -21,10 +15,11 @@ declare -A links=(
   ["$DOTDIR/bin/fast"]="$HOME/bin/fast"
   ["$DOTDIR/bin/fastc"]="$HOME/bin/fastc"
   ["$DOTDIR/bin/arxiv-src"]="$HOME/bin/arxiv-src"
-  ["$DOTDIR/bin/opencode-editor-tmux"]="$HOME/bin/opencode-editor-tmux"
   ["$DOTDIR/bin/opencode"]="$HOME/bin/opencode"
   ["$DOTDIR/bin/ghostty-switch-mode"]="$HOME/bin/ghostty-switch-mode"
   ["$DOTDIR/bin/clipboard-to-photos"]="$HOME/bin/clipboard-to-photos"
+  ["$DOTDIR/bin/osc52"]="$HOME/bin/osc52"
+  ["$DOTDIR/bin/clip"]="$HOME/bin/clip"
 )
 
 link_path() {
@@ -51,10 +46,11 @@ executables=(
   "$DOTDIR/bin/fast"
   "$DOTDIR/bin/fastc"
   "$DOTDIR/bin/arxiv-src"
-  "$DOTDIR/bin/opencode-editor-tmux"
   "$DOTDIR/bin/opencode"
   "$DOTDIR/bin/ghostty-switch-mode"
   "$DOTDIR/bin/clipboard-to-photos"
+  "$DOTDIR/bin/osc52"
+  "$DOTDIR/bin/clip"
 )
 
 for file in "${executables[@]}"; do

@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+
+# Over SSH, copy through the terminal to the client machine. Otherwise use the
+# Mac's native clipboard. exec preserves the selected command's stderr and exit
+# status exactly.
+if [ -n "${SSH_CONNECTION:-}" ] || [ -n "${SSH_TTY:-}" ] || [ -n "${SSH_CLIENT:-}" ]; then
+  exec osc52 "$@"
+fi
+
+exec pbcopy "$@"

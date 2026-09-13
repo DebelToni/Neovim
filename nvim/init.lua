@@ -5,10 +5,14 @@ vim.opt.wrap = true
 vim.opt.relativenumber = true
 vim.opt.number = true
 
+-- Security: never conceal source text. Markdown/HTML comments may contain
+-- prompt injections or other instructions that must remain visible.
+vim.opt.conceallevel = 0
+vim.opt.concealcursor = ""
+
 --Todo: make file for require
 require("config.lazy")
 require("config.bulgarian")
-require("config.myscripts.code_conceal")
 require("config.myscripts.code_hide")
 require("config.myscripts.removecomments")
 require("config.plugins.which-key")
@@ -52,6 +56,7 @@ vim.o.shiftwidth = tabs  -- Number of spaces inserted when indenting
 
 -- 1) Load built-in defaults (cursor restore, shada, etc.)
 vim.cmd('runtime defaults.vim')
+vim.opt.foldenable = false
 
 vim.opt.ignorecase = true
 vim.opt.smartcase = true
@@ -68,8 +73,10 @@ vim.api.nvim_create_autocmd('BufReadPost', {
 	end,
 })
 
--- 3) Remember full “view” (cursor + scroll + folds + more)
---    on window leave…
+-- 3) Remember cursor and scroll position, but never restore hidden folds.
+vim.opt.viewoptions:remove("folds")
+
+--    On window leave…
 vim.api.nvim_create_autocmd('BufWinLeave', {
 	pattern = '*',
 	command = 'silent! mkview'
