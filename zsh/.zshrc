@@ -540,6 +540,7 @@ alias cdu='cd ../'
 alias cduu='cd ../../'
 alias c='clear -x'
 alias mac='ssh mac-self'
+alias dgx='ssh dgx'
 alias update-giant='rm *.* && cp -r ~/Documents/ml/SUPER-GIANT/v1/model/*.* . && cp ~/Documents/ml/SUPER-GIANT/Model_Overview.md .'
 lsf() {
   local target
@@ -708,9 +709,9 @@ if [[ -f "$HOME/.env-EXA" ]]; then
   source "$HOME/.env-EXA"
 fi
 
-# alias ow="cd ~/Documents/wiki && o ."
+# alias ow="cd ~/wiki && o ."
 # alias oc="o -c"
-alias pw="cd ~/Documents/wiki && p"
+alias pw="cd ~/wiki && p"
 alias pc="pi -c"
 alias oauth="opencode auth login && o -c"
 alias jarvis-post-tts="$HOME/.jarvis/app/bin/jarvis-post-tts"
@@ -718,11 +719,12 @@ alias ipad="cd ~/ && ./connect_ipad.sh"
 alias pm="cd ~/ && pi --session 019fa950-176c-79c0-b55e-cf44f03503db"
 
 # how <query> -> ask pi (ephemeral session) for one shell command, show it, run on Y
+    # --provider codex-pro --model gpt-5.3-codex-spark --thinking high \
 how() {
   local cmd yn rc
   cmd=$(pi -p -nt -nc -ne -ns --no-session \
-    --provider openai-codex --model gpt-5.6-luna --thinking medium \
-    --system-prompt "You answer with exactly one shell command and nothing else: no explanation, no markdown fences, no backticks." \
+    --provider codex-pro --model gpt-6-luna --thinking medium \
+    --system-prompt "You answer with exactly one shell command and nothing else: no markdown fences, no backticks. If its a general question you print it. If its prompt to write a shell command you give it in full." \
     "$*"); rc=$?
   [[ $rc -ne 0 || -z "$cmd" ]] && return 1
   cmd=$(print -r -- "$cmd" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^```/d' -e 's/`//g')

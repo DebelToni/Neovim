@@ -1,6 +1,7 @@
 unfocused-split-opacity = 1
 theme = "Catppuccin Mocha"
 cursor-color =
+macos-option-as-alt = true
 custom-shader-animation = always
 config-file = ./modes/active.conf
 keybind = super+alt+arrow_up=text:\x1b[7721u
