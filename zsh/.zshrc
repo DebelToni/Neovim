@@ -534,7 +534,7 @@ PY
 eza-ls() {
   if [ $# -eq 0 ]; then
     # plain `ls` → no recursion
-    command eza --tree --level=0 --no-permissions --no-user --time-style=relative --sort=modified --git --icons -b -l "$@"
+    command eza --no-permissions --no-user --time-style=relative --sort=modified --git --icons -b -l .
   else
     # `ls some/dir` → one-level recursion into that dir
     command eza --tree --level=1 --no-permissions --no-user --time-style=relative --sort=modified --git --icons -b -l "$@"
