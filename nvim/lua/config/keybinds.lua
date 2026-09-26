@@ -115,7 +115,7 @@ vim.api.nvim_create_user_command("Html", function()
 
 	vim.cmd("silent write")
 	vim.notify("Publishing Markdown…")
-	vim.system({ "/Users/antonhristov/wiki/serve_markdown.py", path }, { text = true }, function(result)
+	vim.system({ vim.fn.expand("~/wiki/serve_markdown.py"), path }, { text = true }, function(result)
 		vim.schedule(function()
 			if result.code == 0 then
 				vim.notify(vim.trim(result.stdout) .. " (copied)")

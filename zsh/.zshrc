@@ -19,22 +19,18 @@ fi
 
 ZSH_THEME="powerlevel10k/powerlevel10k"
 
-# ─── Bootstrap Oh My Zsh plugins if missing ────────────────────────────────────
-CUSTOM_PLUGINS="${ZSH:-$HOME/.oh-my-zsh}/custom/plugins"
-
-# zsh-autosuggestions
-if [[ ! -d $CUSTOM_PLUGINS/zsh-autosuggestions ]]; then
-  git clone https://github.com/zsh-users/zsh-autosuggestions \
-    $CUSTOM_PLUGINS/zsh-autosuggestions
+# Bootstrap plugins once Oh My Zsh has been installed on this host.
+if [[ -f "$ZSH/oh-my-zsh.sh" ]]; then
+  CUSTOM_PLUGINS="$ZSH/custom/plugins"
+  if [[ ! -d $CUSTOM_PLUGINS/zsh-autosuggestions ]]; then
+    git clone https://github.com/zsh-users/zsh-autosuggestions \
+      $CUSTOM_PLUGINS/zsh-autosuggestions
+  fi
+  if [[ ! -d $CUSTOM_PLUGINS/zsh-syntax-highlighting ]]; then
+    git clone https://github.com/zsh-users/zsh-syntax-highlighting \
+      $CUSTOM_PLUGINS/zsh-syntax-highlighting
+  fi
 fi
-
-# zsh-syntax-highlighting
-if [[ ! -d $CUSTOM_PLUGINS/zsh-syntax-highlighting ]]; then
-  git clone https://github.com/zsh-users/zsh-syntax-highlighting \
-    $CUSTOM_PLUGINS/zsh-syntax-highlighting
-fi
-
-# (add more plugins here the same way)
 
 HISTSIZE=1000000         # Number of commands in memory per session
 SAVEHIST=1000000         # Number of commands to save to file
@@ -43,7 +39,7 @@ HISTFILE=~/.zsh_history  # File where history is saved
 
 plugins=(git zsh-autosuggestions zsh-syntax-highlighting fzf-tab)
 
-source $ZSH/oh-my-zsh.sh
+[[ -f "$ZSH/oh-my-zsh.sh" ]] && source "$ZSH/oh-my-zsh.sh"
 
 bindkey -v
 
@@ -68,7 +64,7 @@ export VISUAL="$EDITOR"
 # 5) OS-specific tweaks & aliases
 if [[ "$OSTYPE" == "darwin"* ]]; then
   export PATH="$HOME/bin:$PATH"
-  eval "$(zoxide init --cmd cd zsh)"
+  command -v zoxide >/dev/null 2>&1 && eval "$(zoxide init --cmd cd zsh)"
   alias killAnyDesk="sudo pkill -9 -f AnyDesk"
   alias s3=" source ~/.env-R2 && python3 ~/Documents/ML/SUPER-GIANT/CICD/tools/s3.py"
   export S3_BUCKET="giant-data"
@@ -102,12 +98,9 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
   #   "${@:-.}"
   # }
 
-elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-  alias nvidia-smi="/mnt/c/Documents\ and\ Settings/All\ Users/NVIDIA\ Corporation/NVIDIA\ app/UpdateFramework/ota-artifacts/grd/post-processing/aa811dd5940cca149f351159ffb1fcb1/Display.Driver/nvidia-smi"
-  alias bat="batcat"
-  export PATH="/opt/nvim/:$PATH"
-  export PATH="/opt/swift/swift-6.0.3-RELEASE-ubuntu22.04/usr/bin:$PATH"
-  alias cmd=/mnt/c/Windows/System32/cmd.exe
+elif [[ "$OSTYPE" == linux* ]]; then
+  command -v zoxide >/dev/null 2>&1 && eval "$(zoxide init --cmd cd zsh)"
+  command -v batcat >/dev/null 2>&1 && alias bat="batcat"
 fi
 
 # 6) Aliases & functions
@@ -218,6 +211,10 @@ cat() {
   if (( $# == 1 )) && [[ -f "$1" ]]; then
     case "${1:l}" in
       *.png|*.jpg|*.jpeg|*.heic)
+        if ! command -v kitten >/dev/null 2>&1; then
+          command cat "$@"
+          return
+        fi
         local -a icat_args=(
           icat --align=left --fit=width --scale-up --stdin=no
           --transfer-mode=stream --passthrough=none
@@ -229,8 +226,10 @@ cat() {
           # Match image.nvim: direct Kitty transmission wrapped in tmux DCS,
           # without Kitty's Unicode-placeholder passthrough mode.
           setopt local_options pipe_fail
+          local image_python=/Volumes/SSD/v/py/bin/python
+          [[ "$OSTYPE" == linux* ]] && image_python=python3
           command kitten "${icat_args[@]}" -- "$1" |
-            /Volumes/SSD/v/py/bin/python -c '
+            command "$image_python" -c '
 import re, sys
 data = sys.stdin.buffer.read()
 graphics = re.compile(b"\x1b_G.*?\x1b\\\\", re.DOTALL)
@@ -261,6 +260,15 @@ sys.stdout.buffer.write(graphics.sub(
 
 pg-table-sizes-all(){ psql -U postgres -h localhost -p 5432 -At -c "SELECT datname FROM pg_database WHERE NOT datistemplate;" | while read -r db; do echo "=== $db ==="; psql -U postgres -h localhost -p 5432 -d "$db" -c "SELECT n.nspname AS schema, c.relname AS table, pg_size_pretty(pg_total_relation_size(c.oid)) AS total_size, pg_total_relation_size(c.oid) AS total_bytes FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.relkind IN ('r','p','m') AND n.nspname NOT IN ('pg_catalog','information_schema') ORDER BY total_bytes DESC${1:+ LIMIT $1};"; done; }
 
+# Open local files with the host's native opener.
+_open_on_host() {
+  if [[ "$OSTYPE" == darwin* ]]; then
+    open "$@"
+  else
+    xdg-open "$@"
+  fi
+}
+
 # Run "typst compile ..." and if it succeeds, open the compiled PDF.
 typst() {
   if [[ "$1" == "compile" ]]; then
@@ -285,7 +293,7 @@ typst() {
     fi
 
     # Only open if it exists (extra safety)
-    [[ -f "$out" ]] && open "$out"
+    [[ -f "$out" ]] && _open_on_host "$out"
     return 0
   fi
 
@@ -306,6 +314,10 @@ tectonic() {
     fi
   done
 
+  if (( ipad )) && [[ "$OSTYPE" != darwin* ]]; then
+    print -u2 -- "tectonic --ipad: Mac-only Tailscale route; not configured on DGX"
+    return 1
+  fi
   (( ipad )) && print -u2 -- "tectonic --ipad: compiling..."
   command tectonic "${tectonic_args[@]}" || return $?
   set -- "${tectonic_args[@]}"
@@ -353,7 +365,7 @@ tectonic() {
   fi
 
   if (( ! ipad )); then
-    open "$pdf"
+    _open_on_host "$pdf"
     return 0
   fi
 
@@ -530,17 +542,25 @@ eza-ls() {
 }
 
 # then alias or symlink it as your new `ls`
-alias ls='eza-ls'
+command -v eza >/dev/null 2>&1 && alias ls='eza-ls'
 
 alias inv='nvim $(fzf -m --preview="bat --color=always {}")'
-alias py='/Volumes/SSD/v/py/bin/python'
+if [[ "$OSTYPE" == darwin* ]]; then
+  alias py='/Volumes/SSD/v/py/bin/python'
+else
+  alias py='python3'
+fi
 alias lgit='lazygit'
 alias ldocker='lazydocker'
 alias cdu='cd ../'
 alias cduu='cd ../../'
 alias c='clear -x'
-alias mac='ssh mac-self'
-alias dgx='ssh dgx'
+if [[ "$OSTYPE" == darwin* ]]; then
+  alias mac='ssh mac-self'
+  alias dgx='ssh dgx'
+else
+  alias mac='ssh mac'
+fi
 alias update-giant='rm *.* && cp -r ~/Documents/ml/SUPER-GIANT/v1/model/*.* . && cp ~/Documents/ml/SUPER-GIANT/Model_Overview.md .'
 lsf() {
   local target
@@ -550,7 +570,7 @@ lsf() {
 openf() {
   local target
   target=$(fzf) || return
-    open -- "$(dirname -- "$target")" || return
+    _open_on_host "$(dirname -- "$target")" || return
 }
 cdf() {
   local target
@@ -631,8 +651,10 @@ makc() {
 # }
 
 # zoxide, thefuck, fzf, and cheat.sh integration
-eval "$(thefuck --alias)"
-eval "$(thefuck --alias fk)"
+if command -v thefuck >/dev/null 2>&1; then
+  eval "$(thefuck --alias)"
+  eval "$(thefuck --alias fk)"
+fi
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
 setopt extended_glob # some fzf
 setopt globstarshort
@@ -664,7 +686,7 @@ drawit(){
 	python drawit.py
 }
 
-export PATH="/opt/homebrew/opt/llvm@19/bin:$PATH"
+[[ "$OSTYPE" == darwin* ]] && export PATH="/opt/homebrew/opt/llvm@19/bin:$PATH"
 [[ -f ~/.config/secrets.zsh ]] && source ~/.config/secrets.zsh
 
 # Commands starting with a space won't be saved to history
@@ -673,16 +695,16 @@ setopt HIST_IGNORE_SPACE
 setopt HIST_REDUCE_BLANKS HIST_IGNORE_DUPS HIST_IGNORE_ALL_DUPS
 
 # opencode
-export PATH=/Users/antonhristov/.opencode/bin:$PATH
+export PATH="$HOME/.opencode/bin:$PATH"
 
 #bun
 export BUN_INSTALL="$HOME/.bun"
 export PATH="$BUN_INSTALL/bin:$PATH"
 
 # bun completions
-[ -s "/Users/antonhristov/.cache/opencode-hack/bun/_bun" ] && source "/Users/antonhristov/.cache/opencode-hack/bun/_bun"
+[ -s "$HOME/.cache/opencode-hack/bun/_bun" ] && source "$HOME/.cache/opencode-hack/bun/_bun"
 
-alias cdicloud="cd ~/Library/Mobile\ Documents/com~apple~CloudDocs/"
+[[ "$OSTYPE" == darwin* ]] && alias cdicloud="cd ~/Library/Mobile\ Documents/com~apple~CloudDocs/"
 alias q="exit"
 
 mkcd() {

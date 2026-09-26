@@ -7,4 +7,8 @@ if [ -n "${SSH_CONNECTION:-}" ] || [ -n "${SSH_TTY:-}" ] || [ -n "${SSH_CLIENT:-
   exec osc52 "$@"
 fi
 
-exec pbcopy "$@"
+if command -v pbcopy >/dev/null 2>&1; then
+  exec pbcopy "$@"
+fi
+
+exec osc52 "$@"

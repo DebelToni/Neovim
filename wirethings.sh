@@ -1,61 +1,50 @@
 #!/usr/bin/env bash
-set -e
+set -euo pipefail
 
 DOTDIR="$HOME/my-vim-env"
 declare -A links=(
   ["$DOTDIR/zsh/.zshrc"]="$HOME/.zshrc"
-  ["$DOTDIR/tmux/.tmux.conf"]="$HOME/.tmux.conf"
-  ["$DOTDIR/nvim"]="$HOME/.config/nvim"
-  ["$DOTDIR/ghostty"]="$HOME/.config/ghostty"
-  ["$DOTDIR/skhd"]="$HOME/.config/skhd"
   ["$DOTDIR/zsh/.zshenv"]="$HOME/.zshenv"
   ["$DOTDIR/zsh/.zprofile"]="$HOME/.zprofile"
   ["$DOTDIR/zsh/.p10k.zsh"]="$HOME/.p10k.zsh"
+  ["$DOTDIR/tmux/.tmux.conf"]="$HOME/.tmux.conf"
   ["$DOTDIR/tmux"]="$HOME/.tmux"
-  ["$DOTDIR/bin/fast"]="$HOME/bin/fast"
-  ["$DOTDIR/bin/fastc"]="$HOME/bin/fastc"
-  ["$DOTDIR/bin/arxiv-src"]="$HOME/bin/arxiv-src"
-  ["$DOTDIR/bin/opencode"]="$HOME/bin/opencode"
-  ["$DOTDIR/bin/ghostty-switch-mode"]="$HOME/bin/ghostty-switch-mode"
-  ["$DOTDIR/bin/clipboard-to-photos"]="$HOME/bin/clipboard-to-photos"
+  ["$DOTDIR/nvim"]="$HOME/.config/nvim"
   ["$DOTDIR/bin/osc52"]="$HOME/bin/osc52"
   ["$DOTDIR/bin/clip"]="$HOME/bin/clip"
 )
 
-link_path() {
-  local src="$1"
-  local dest="$2"
+case "$(uname)" in
+  Darwin)
+    links["$DOTDIR/ghostty"]="$HOME/.config/ghostty"
+    # Keep an existing independent Mac skhd directory untouched.
+    if [[ ! -e "$HOME/.config/skhd" || -L "$HOME/.config/skhd" ]]; then
+      links["$DOTDIR/skhd"]="$HOME/.config/skhd"
+    fi
+    for name in fast fastc arxiv-src opencode ghostty-switch-mode clipboard-to-photos; do
+      links["$DOTDIR/bin/$name"]="$HOME/bin/$name"
+    done
+    links["$DOTDIR/bin/opencode"]="$HOME/.opencode/bin/opencode"
+    ;;
+  Linux) ;;
+  *) printf 'Unsupported host: %s\n' "$(uname)" >&2; exit 1 ;;
+esac
 
-  mkdir -p "$(dirname "$dest")"
-
-  if [[ -L "$dest" || -f "$dest" ]]; then
-    rm -f "$dest"
-  elif [[ -d "$dest" ]]; then
-    rm -rf "$dest"
+# Refuse conflicts before changing anything; never delete another host's data.
+for src in "${!links[@]}"; do
+  dest=${links[$src]}
+  if [[ -e "$dest" || -L "$dest" ]]; then
+    if [[ ! -L "$dest" || "$(readlink "$dest")" != "$src" ]]; then
+      printf 'Refusing to replace %s\n' "$dest" >&2
+      exit 1
+    fi
   fi
-
-  ln -sfnv "$src" "$dest"
-}
+done
 
 for src in "${!links[@]}"; do
-  dest="${links[$src]}"
-  link_path "$src" "$dest"
+  dest=${links[$src]}
+  if [[ ! -L "$dest" ]]; then
+    mkdir -p "$(dirname "$dest")"
+    ln -sv "$src" "$dest"
+  fi
 done
-
-executables=(
-  "$DOTDIR/bin/fast"
-  "$DOTDIR/bin/fastc"
-  "$DOTDIR/bin/arxiv-src"
-  "$DOTDIR/bin/opencode"
-  "$DOTDIR/bin/ghostty-switch-mode"
-  "$DOTDIR/bin/clipboard-to-photos"
-  "$DOTDIR/bin/osc52"
-  "$DOTDIR/bin/clip"
-)
-
-for file in "${executables[@]}"; do
-  [[ -f "$file" ]] && chmod +x "$file"
-done
-
-mkdir -p "$HOME/.opencode/bin"
-link_path "$DOTDIR/bin/opencode" "$HOME/.opencode/bin/opencode"

@@ -1,14 +1,13 @@
-if [[ -o interactive ]]; then
-  source ~/.zshrc
-fi
+if [[ "$OSTYPE" == darwin* ]]; then
+  if [[ -o interactive ]]; then
+    source ~/.zshrc
+  fi
 
-export PYTHONPYCACHEPREFIX="/Volumes/SSD/dev-artifacts/pycache"
-export PLAYWRIGHT_BROWSERS_PATH="/Volumes/SSD/dev-artifacts/ms-playwright"
-export HF_HOME="/Volumes/SSD/huggingface/huggingface"
-
-if [[ "$(uname)" == "Darwin" ]]; then
-	export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
-else
-	. "$HOME/.cargo/env"
-	export PATH="$HOME/bin:$PATH"
+  export PYTHONPYCACHEPREFIX="/Volumes/SSD/dev-artifacts/pycache"
+  export PLAYWRIGHT_BROWSERS_PATH="/Volumes/SSD/dev-artifacts/ms-playwright"
+  export HF_HOME="/Volumes/SSD/huggingface/huggingface"
+  export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
+elif [[ "$OSTYPE" == linux* ]]; then
+  export PATH="$HOME/.local/bin:$HOME/bin:$PATH"
+  [[ -f "$HOME/.cargo/env" ]] && source "$HOME/.cargo/env"
 fi
