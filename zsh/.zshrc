@@ -4,16 +4,14 @@
 [[ -f ~/.zprofile ]] && source ~/.zprofile
 export ZSH="$HOME/.oh-my-zsh"
 
-# Auto-attach to the most recently used tmux session when SSH'ing into this macOS host.
-# - interactive shells only
-# - only over SSH
-# - don't nest tmux inside tmux
-if [[ "$OSTYPE" == "darwin"* ]] \
+# On DGX, resume the tmux session last used by this SSH device.
+# Mac SSH starts a plain shell; noninteractive SSH and nested tmux do not attach.
+if [[ "$OSTYPE" == linux* ]] \
   && [[ $- == *i* ]] \
   && [[ -n "${SSH_CONNECTION}${SSH_CLIENT}${SSH_TTY}" ]] \
   && [[ -z "${TMUX}" ]]; then
   if command -v tmux >/dev/null 2>&1; then
-    tmux attach 2>/dev/null || tmux new
+    "$HOME/my-vim-env/tmux/dgx-device-session.py" attach
   fi
 fi
 
