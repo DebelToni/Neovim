@@ -69,12 +69,11 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
   alias bat="bat"
   alias codexa="codex --dangerously-bypass-approvals-and-sandbox"
   alias o="opencode"
-  alias p="pi"
-  alias coc="~/.config/opencode"
-  # alias cf='codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.2 -c model_reasoning_effort=low exec'
 
-  alias copilota=" copilot --allow-all-tools --allow-all-paths --add-dir --resume"
-  alias cr="codex --dangerously-bypass-approvals-and-sandbox resume"
+  # alias cf='codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.2 -c model_reasoning_effort=low exec'
+  # alias coc="~/.config/opencode"
+  # alias copilota=" copilot --allow-all-tools --allow-all-paths --add-dir --resume"
+  # alias cr="codex --dangerously-bypass-approvals-and-sandbox resume"
   # alias openg="open --url $(git remote get-url origin)"
   [[ -d "/opt/homebrew/opt/swift/bin" ]] && export PATH="/opt/homebrew/opt/swift/bin:$PATH"
   # alias tailscale=/Applications/Tailscale.app/Contents/MacOS/Tailscale # fixed on installing binary in bath throught the tailscale pannel
@@ -104,6 +103,7 @@ fi
 # 6) Aliases & functions
 alias r2='s5cmd --endpoint-url "$R2_ENDPOINT"'
 alias n='nvim'
+alias p='pi'
 alias psql-size='psql -U postgres -h localhost -p 5432 -c "SELECT d.datname AS database, pg_size_pretty(pg_database_size(d.datname)) AS size FROM pg_database d WHERE NOT d.datistemplate ORDER BY pg_database_size(d.datname) DESC;"'
 
 # Paste multiline text, finish with Ctrl-D, and copy it after a 10-second delay.

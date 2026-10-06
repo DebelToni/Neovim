@@ -13,8 +13,6 @@
 			                                                                       
 			 								    	duner kebab	         			 
 
-(if you use any operating system different from wsl, go to nvim-silicon and dissable the wsl parameters)
-
 ## How to setup
 ```bash
 rm ~/.config/nvim

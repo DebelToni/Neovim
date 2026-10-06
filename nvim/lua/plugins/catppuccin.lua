@@ -21,8 +21,6 @@ return {
 						FloatBorder = { bg = "NONE" },
 						SignColumn = { bg = "NONE" },
 						EndOfBuffer = { bg = "NONE" },
-						NeoTreeNormal = { bg = "NONE" },
-						NeoTreeNormalNC = { bg = "NONE" },
 						TelescopeNormal = { bg = "NONE" },
 						TelescopeBorder = { bg = "NONE" },
 						WinSeparator = { fg = colors.surface1, bg = "NONE" },
@@ -33,9 +31,4 @@ return {
 			vim.cmd [[colorscheme catppuccin]]
 		end
 	},
-	{
-		"webhooked/kanso.nvim",
-		lazy = false,
-		priority = 1000,
-	}
 }

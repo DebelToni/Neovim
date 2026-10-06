@@ -43,10 +43,6 @@ set_keymap("n", "<C-j>", "<cmd>TmuxNavigateDown<cr>", { desc = "Nav down" })
 -- set_keymap("n", "<C-k>", "<cmd>TmuxNavigateDown<cr>", {desc = "Nav down"})
 set_keymap("n", "<C-l>", "<cmd>TmuxNavigateRight<cr>", { desc = "Nav right" })
 
---vim.api.nvim_set_keymap('v', '<leader>s', [[:lua require('silicon').visualise_api({})<CR>]], { noremap = true, silent = true })
---vim.keymap.set('v', '<Leader>s',  function() silicon.visualise_api() end )
---vim.api.nvim_set_keymap('v', '<leader>s', ':Silicon<CR>', { noremap = true, silent = true })
-
 --vim.api.nvim_set_keymap('n', '<F5>', ':lua ToggleHideTaggedLines()<CR>', { noremap = true, silent = true })
 
 -- vim.api.nvim_set_keymap('n', '<A-j>', ':m-2<CR>==', { noremap = true, silent = true })
