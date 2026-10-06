@@ -102,6 +102,7 @@ vim.api.nvim_set_keymap("n", "<leader>gi", ":Gitsigns ", { noremap = true, silen
 
 vim.api.nvim_set_keymap("n", "<leader>w", "<cmd>w | bd<CR>", { noremap = true, silent = true, desc = "norm" })
 
+if not vim.g.school_profile then
 vim.api.nvim_create_user_command("Html", function()
 	local path = vim.api.nvim_buf_get_name(0)
 	if path == "" or path:lower():sub(-3) ~= ".md" then
@@ -124,3 +125,4 @@ end, {})
 
 -- Neovim requires user commands to start uppercase; this makes :html invoke :Html.
 vim.cmd([[cnoreabbrev <expr> html getcmdtype() ==# ':' && getcmdline() ==# 'html' ? 'Html' : 'html']])
+end

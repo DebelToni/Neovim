@@ -1,4 +1,5 @@
 vim.g.mapleader = " "
+vim.g.school_profile = vim.env.SCHOOL_SHELL == "1"
 -- vim.g.maplocalleader = "\\"
 
 vim.opt.wrap = true
@@ -19,7 +20,7 @@ require("config.align").setup()
 -- require("config.code_hints").setup()
 -- require("config.dynamic_yank").start()
 require("config.myscripts.floating_terminal")
-require("config.myscripts.pi_explain").setup()
+if not vim.g.school_profile then require("config.myscripts.pi_explain").setup() end
 require("config.myscripts.reload_diff_highlight").setup()
 -- require("config.myscripts.move_upORdown_better_in_markdown")
 require("config.myscripts.narrow_buffer").setup()
@@ -29,7 +30,7 @@ require("mini.bufremove").setup()
 require("mini.pick").setup()
 
 require("config.keybinds")
-require("config.typst_compile_keybind")
+if not vim.g.school_profile then require("config.typst_compile_keybind") end
 -- require("AI")
 -- require("opencode_copilot")
 -- require("opencode_copilot_chat").setup({ server_url = "http://127.0.0.1:4096", provider_id = "cerebras", model_id = "gpt-oss-120b", auto_start_server = false, })
@@ -89,4 +90,8 @@ vim.api.nvim_create_autocmd('BufWinEnter', {
 
 
 
-vim.keymap.set("i", "<C-l>", "copilot#Suggest()", { expr = true, silent = false })
+if vim.g.school_profile then
+	require("school").setup()
+else
+	vim.keymap.set("i", "<C-l>", "copilot#Suggest()", { expr = true, silent = false })
+end

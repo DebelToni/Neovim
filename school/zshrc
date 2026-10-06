@@ -1,0 +1,42 @@
+# School-only profile. No personal exports, secrets, services or SSH auto-attach.
+export EDITOR=nvim VISUAL=nvim
+HISTSIZE=1000000
+SAVEHIST=1000000
+HISTFILE=~/.zsh_history
+setopt appendhistory HIST_IGNORE_SPACE HIST_REDUCE_BLANKS HIST_IGNORE_ALL_DUPS
+bindkey -v
+autoload -Uz compinit
+compinit
+source /usr/share/zsh-autosuggestions/zsh-autosuggestions.zsh
+source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
+source /usr/share/doc/fzf/examples/key-bindings.zsh
+source /usr/share/doc/fzf/examples/completion.zsh
+eval "$(zoxide init --cmd cd zsh)"
+alias n=nvim bat=batcat c='clear -x' cdu='cd ../' cduu='cd ../../' q=exit
+alias inv='nvim $(fzf -m --preview="batcat --color=always {}")'
+eza-ls() {
+  if (( $# == 0 )); then
+    command eza --no-permissions --no-user --time-style=relative --sort=modified --git -b -l .
+  else
+    command eza --tree --level=1 --no-permissions --no-user --time-style=relative --sort=modified --git -b -l "$@"
+  fi
+}
+alias ls=eza-ls
+mkcd() { mkdir -p -- "$1" && cd -- "$1"; }
+cdf() { local target; target=$(fzf) || return; [[ -d $target ]] && cd -- "$target" || cd -- "${target:h}"; }
+vi() { nvim "$@" && clear; }
+makc() { make && ls; }
+nvim() {
+  case "$1" in
+    zsh) command nvim ~/.zshrc ;;
+    tmux) command nvim ~/.tmux.conf ;;
+    *) command nvim "$@" ;;
+  esac
+}
+# Powerlevel10k with portable ASCII: school terminals need no Nerd Font install.
+typeset -g POWERLEVEL9K_DISABLE_CONFIGURATION_WIZARD=true
+typeset -g POWERLEVEL9K_MODE=ascii
+typeset -g POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(dir vcs prompt_char)
+typeset -g POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(status command_execution_time time)
+typeset -g POWERLEVEL9K_TIME_FORMAT='%D{%H:%M}'
+source /opt/powerlevel10k/powerlevel10k.zsh-theme

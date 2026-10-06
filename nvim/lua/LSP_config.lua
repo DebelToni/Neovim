@@ -177,7 +177,7 @@ vim.lsp.config("pyright", {
 })
 
 -- =============== Enable servers ===============
-vim.lsp.enable({
+local servers = {
 	"clangd", -- C/C++
 	"bashls", -- Bash
 	"lua_ls", -- Lua
@@ -188,4 +188,6 @@ vim.lsp.enable({
 	"yamlls", -- YAML
 	-- "jdtls"     -- java needs its own dir
 	"jsonls",
-})
+}
+if vim.g.school_profile then servers = { "clangd", "bashls", "lua_ls" } end
+vim.lsp.enable(servers)
