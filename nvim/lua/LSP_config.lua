@@ -117,6 +117,12 @@ vim.lsp.config("lua_ls", {
 	},
 })
 
+if vim.g.school_profile then
+	local logpath = vim.fn.stdpath("cache") .. "/lua-language-server"
+	vim.fn.mkdir(logpath, "p")
+	vim.lsp.config("lua_ls", { cmd = { "lua-language-server", "--logpath=" .. logpath } })
+end
+
 -- YAML
 vim.lsp.config("yamlls", {
 	settings = {
