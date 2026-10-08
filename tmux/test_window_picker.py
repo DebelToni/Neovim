@@ -16,7 +16,7 @@ class WindowPickerTest(unittest.TestCase):
             tmux = root / "tmux"
             tmux.write_text("""#!/bin/sh
 case "$1" in
-  list-windows) printf '%%1\\tDemo:1 ● Running\\t● Running\\n%%2\\tDemo:2 ✓ Done\\t✓ Done\\n%%3\\tDemo:3 ○ Idle\\t○ Idle\\n%%4\\tDemo:4 ? Review\\t? Review\\n' ;;
+  list-windows) printf '%%1\\tDemo:1 ● Running\\t● Running\\n%%2\\tDemo:2 ✓ Done\\t✓ Done\\n%%3\\tDemo:3 ○ Idle\\t○ Idle\\n%%4\\tDemo:4 ? Review\\t? Review\\n%%5\\tDemo:5 ? Hidden\\t? Hidden\\texcluded\\n%%6\\tDemo:6 ● Hidden\\t● Hidden\\texcluded\\n' ;;
   switch-client) printf '%s\\n' "$3" > "$PICKER_SELECTION" ;;
   *) exit 1 ;;
 esac
@@ -42,6 +42,8 @@ if [ "$call" -lt 2 ]; then printf '\\nright\\n'; else printf '\\n\\n%%4\\tDemo:4
             self.assertIn("[?]", (root / "args2").read_text())
             self.assertIn("? Review", (root / "items2").read_text())
             self.assertNotIn("● Running", (root / "items2").read_text())
+            self.assertNotIn("Hidden", (root / "items1").read_text())
+            self.assertNotIn("Hidden", (root / "items2").read_text())
             self.assertRegex((root / "args2").read_text(), r"1\s+1\s+1\s+1")
 
 

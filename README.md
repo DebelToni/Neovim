@@ -24,3 +24,11 @@ the appropriate zsh binary per host. Changing DGX's account login shell
 is a separate step. Linux-only plugins and tools such as Oh My Zsh, fzf,
 eza, zoxide, and Neovim's external build tools may still need installing;
 this repo does not migrate their caches or executable binaries.
+
+## Pi marked-window picker
+
+Tmux leader+v runs `tmux/scripts/window-picker.sh`. It groups marked Pi windows by running, question, done and idle status. Windows with explicit `@pi_title_state=excluded` are omitted from items and counts, even if their names contain a marker.
+
+Native Pi's `--unlisted` or `/unlisted` sets exclusion; `/unlisted off` restores it. This is not a tmux-session filter. Titles remain window-level, while the phone app uses the separate pane-local `@pi_unlisted` flag. Prefix+P and saved-session catalogs remain historical retrieval tools.
+
+Verify the picker with `uv run --no-project python -m unittest tmux/test_window_picker.py`. The test mocks tmux/fzf rather than opening a popup in a live session.

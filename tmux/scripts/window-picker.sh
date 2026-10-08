@@ -7,8 +7,9 @@ query=
 nl='
 '
 while :; do
-  windows=$(tmux list-windows -a -F '#{pane_id}	#{session_name}:#{window_index} #{window_name}	#{window_name}')
+  windows=$(tmux list-windows -a -F '#{pane_id}	#{session_name}:#{window_index} #{window_name}	#{window_name}	#{@pi_title_state}')
   counts=$(printf '%s\n' "$windows" | awk -F '\t' '
+    $4 == "excluded" { next }
     index($3, "●") == 1 { a++ }
     index($3, "?") == 1 { b++ }
     index($3, "✓") == 1 { c++ }
@@ -26,7 +27,7 @@ while :; do
 
   result=$(
     printf '%s\n' "$windows" |
-      awk -F '\t' -v marker="$marker" 'index($3, marker) == 1 { print $1 "\t" $2 }' |
+      awk -F '\t' -v marker="$marker" '$4 != "excluded" && index($3, marker) == 1 { print $1 "\t" $2 }' |
       fzf --delimiter "$(printf '\t')" --with-nth 2 --nth 2 \
         --layout reverse --header-first --header "$header" \
         --prompt '←→ tab > ' --query "$query" \
