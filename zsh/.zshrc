@@ -98,6 +98,7 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 elif [[ "$OSTYPE" == linux* ]]; then
   command -v zoxide >/dev/null 2>&1 && eval "$(zoxide init --cmd cd zsh)"
   command -v batcat >/dev/null 2>&1 && alias bat="batcat"
+  alias smi='spark-smi -l'
 fi
 
 # 6) Aliases & functions

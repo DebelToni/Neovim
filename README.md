@@ -1,34 +1,65 @@
 # my-vim-env
 
-In this repo I have all the configs for all the tools I use in my favorite code edtior - the temrinal.
+My terminal is my editor. These are the Neovim, tmux, zsh, Ghostty and iPad keyboard configs behind it.
 
-This repo includes My setup for:
-- Neovim
-- Tmux
-- my zshrc 
-- Ghostty shaders 
-- custom bash scripts automating my life
+There's a lot here, including experiments, old integrations and paths specific to my machines. Pick something useful from the catalogue below and steal that piece. Installing the entire setup will bring along assumptions you probably don't want.
 
-## Mac and DGX
+## Things worth stealing
 
-Both hosts use the same Git-tracked `zsh/`, `tmux/`, and `nvim/` files.
-Keep the checkout at `~/my-vim-env`; `bash wirethings.sh` links the
-host's dotfiles without deleting existing files or directories. Ghostty,
-skhd, and Mac-only helper links are installed only on macOS. On DGX the
-script links the shell, tmux, Neovim, `clip`, and `osc52` configurations.
-An existing separate Mac `~/.config/skhd` directory remains untouched.
+### tmux and remote work
 
-The Mac keeps Homebrew and `/Volumes/SSD` paths; DGX uses
-`~/.local/bin` and avoids the retired WSL/Linuxbrew setup. Tmux selects
-the appropriate zsh binary per host. Changing DGX's account login shell
-is a separate step. Linux-only plugins and tools such as Oh My Zsh, fzf,
-eza, zoxide, and Neovim's external build tools may still need installing;
-this repo does not migrate their caches or executable binaries.
+| Idea | What it does | Implementation |
+| --- | --- | --- |
+| Resume where each device left off | Remembers the last tmux session used by each Tailscale SSH device, so reconnecting from an iPad doesn't inherit another device's choice. Linux-specific. | [Device tracking](tmux/dgx-device-session.py), [shell entry point](zsh/.zshrc) |
+| Three-session muscle memory | Prefix+Tab returns to the previous session; Prefix+Shift+Tab jumps to the third-most-recent distinct session. History is per client. | [History helper](tmux/scripts/session-history.py), [bindings and hooks](tmux/.tmux.conf) |
+| A dashboard for agent windows | Prefix+v opens an fzf picker grouped by running, question, done and idle, with pane previews and counts. Excluded windows stay out. | [Window picker](tmux/scripts/window-picker.sh) |
+| Park a window without leaving your work | Prefix+b moves a window into background session `B`; Prefix+Shift+b moves it to the next session and follows it. | [tmux bindings](tmux/.tmux.conf) |
+| Copy from a remote agent to your local clipboard | Pipe text to `clip`. It uses OSC 52 over SSH, including from captured subprocesses inside tmux, and the native clipboard on a local Mac. | [`clip`](bin/clip), [`osc52`](bin/osc52) |
+| Open the current Git remote | Prefix+g opens the repository in a local browser, or copies its URL over SSH. | [tmux bindings](tmux/.tmux.conf) |
+| Keep Mac and iPad shortcuts consistent | Command+number selects tmux windows; Command+Option+Up/Down switches sessions using explicit terminal key sequences. | [Ghostty keys](ghostty/config), [iPad keys](ipad/rootshell-blink-keybindings.conf), [tmux decoding](tmux/.tmux.conf) |
 
-## Pi marked-window picker
+The agent picker consumes Pi window-title markers (`●`, `?`, `✓`, `○`) and the `@pi_title_state` option. The Pi integration that publishes them is outside this repo. Prefix+P also calls an external Pi session finder, not a bundled script.
 
-Tmux leader+v runs `tmux/scripts/window-picker.sh`. It groups marked Pi windows by running, question, done and idle status. Windows with explicit `@pi_title_state=excluded` are omitted from items and counts, even if their names contain a marker.
+### Neovim
 
-Native Pi's `--unlisted` or `/unlisted` sets exclusion; `/unlisted off` restores it. This is not a tmux-session filter. Titles remain window-level, while the phone app uses the separate pane-local `@pi_unlisted` flag. Prefix+P and saved-session catalogs remain historical retrieval tools.
+| Idea | What it does | Implementation |
+| --- | --- | --- |
+| Vim keys on a Bulgarian layout | Translates Bulgarian-layout input for normal commands and mappings, including mappings added later. | [Bulgarian support](nvim/lua/config/bulgarian.lua) |
+| Edit just one region | Opens a selected range in a separate buffer; writing it updates the original region using extmarks. | [Narrow buffer](nvim/lua/config/myscripts/narrow_buffer.lua) |
+| See what changed on reload | Highlights lines changed by an external file reload, useful when an agent is editing alongside you. | [Reload highlights](nvim/lua/config/myscripts/reload_diff_highlight.lua) |
+| Ask Pi about code, review its edits | Floating chat for the cursor or selection, follow-up questions, and proposed edits you can accept or reject. Requires the Pi CLI. | [Pi integration](nvim/lua/config/myscripts/pi_explain.lua) |
+| Align by a pattern | Aligns the first regex match across a range, accounting for display columns and tabs. | [Alignment helper](nvim/lua/config/align.lua) |
+| A reusable floating terminal | Toggle a terminal or send C, Python and Maven commands to it. | [Floating terminal](nvim/lua/config/myscripts/floating_terminal.lua) |
+| Images inside tmux | Configures image rendering around editor focus and the active tmux window, with graphics cleanup on exit. Needs a compatible terminal and image dependencies. | [image.nvim setup](nvim/lua/plugins/image.lua), [tmux passthrough](tmux/.tmux.conf) |
+| Read Markdown without hiding source | Markdown rendering with conceal disabled, so HTML comments and other source text remain visible. | [Renderer](nvim/lua/plugins/markdown-nvim.lua), [editor defaults](nvim/init.lua) |
 
-Verify the picker with `uv run --no-project python -m unittest tmux/test_window_picker.py`. The test mocks tmux/fzf rather than opening a popup in a live session.
+Check [init.lua](nvim/init.lua) and [plugin loading](nvim/lua/config/lazy.lua) before borrowing a module. Some other files are disabled experiments; the school profile also changes what loads.
+
+### Shell helpers and terminal toys
+
+| Idea | What it does | Implementation |
+| --- | --- | --- |
+| `cat` an image | Shows a single image at terminal width using Kitty graphics, wraps it for tmux, and clears the shell preview before the next command. | [`cat` and graphics hooks](zsh/.zshrc) |
+| Recover an agent conversation from scrollback | `pic` resumes the last `pi --session` command found in the pane; `clippi` also captures a message and copies it to the clipboard. | [Pi shell helpers](zsh/.zshrc) |
+| Ask for a shell command before running it | `how` asks Pi for a command, displays it and waits for confirmation. Model/provider settings are personal; review the output before approving execution. | [`how`](zsh/.zshrc) |
+| Delayed clipboard | `clip10` accepts multiline text and copies it after ten seconds. | [`clip10`](zsh/.zshrc) |
+| Read a paper's source | `arxiv-src` accepts an arXiv URL or ID, downloads its source bundle and identifies a likely main TeX file. | [`arxiv-src`](bin/arxiv-src) |
+| Stack Ghostty visual modes | Combine base settings, transparency, lightsaber effects, hacker mode and a bouncing horse shader. | [Mode switcher](ghostty/modes/switch_mode.sh), [layers](ghostty/modes/), [horse shader](ghostty/horse_dvd.glsl) |
+
+## Bring your agent
+
+Point your coding agent at this repository and tell it which idea you want. For example:
+
+> Look up the per-device tmux session implementation in DebelToni/Neovim. Read the helper, its shell integration and tests. Adapt the smallest useful version for my machines and existing config. Identify dependencies and platform assumptions, preserve my bindings, and test it without touching my live tmux server. Don't install the whole dotfiles repo.
+
+Agents: follow the linked implementation through its callers, configuration and tests. Ask your owner about choices that affect their workflow. Replace my usernames, paths, hostnames, provider settings and external integrations with what actually fits their environment. Keep unrelated settings untouched and explain any behavior you leave out.
+
+## Working on this setup
+
+My checkout lives at `~/my-vim-env`, shared between a Linux DGX host and a Mac. [wirethings.sh](wirethings.sh) links host-appropriate files and refuses to replace conflicting files or directories. It does not install all dependencies or make the setup portable; read it before considering it for your own machine.
+
+The tmux helpers have focused checks using mocks or isolated servers, without reloading the live configuration:
+
+```sh
+uv run --no-project python -m unittest discover -s tmux -p 'test_*.py'
+```
